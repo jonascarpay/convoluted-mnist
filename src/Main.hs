@@ -48,16 +48,17 @@ imageSource = sourceFileBS "./data/train-images.idx3-ubyte" .| imageC
   where imageC = do CBS.take 16
                     conduitGet2 get
 
-type N = 100
-type MNIST = Network (ZZ ::. N ::. 1 ::. 28 ::. 28)
+type BatchSize = 100
+type MNIST = Network (ZZ ::. BatchSize ::. 1 ::. 28 ::. 28)
                      '[ Convolution 5 1 13 13 16 16
+                      , Pool
                       , ReLU
                       , Flatten
-                      , FC 1280 10
+                      , FC 320 10
                       , MultiSoftMax '[10] ]
-                     (ZZ ::. N ::. 10)
+                     (ZZ ::. BatchSize ::. 10)
 
-trainC :: LearningParameters -> Conduit (MX N, MY N) (ResourceT IO) Double
+trainC :: LearningParameters -> Conduit (MX BatchSize, MY BatchSize) (ResourceT IO) Double
 trainC params = go (randomNetwork 9 :: MNIST)
   where
     go net = do Just (MX x, MY y) <- await
