@@ -8,6 +8,7 @@ import Label
 import Network
 import Layers
 import Runners
+import Conduits
 
 import Data.Serialize
 import Data.Singletons.TypeLits
@@ -49,30 +50,22 @@ imageSource = sourceFileBS "./data/train-images.idx3-ubyte" .| imageC
   where imageC = do CBS.take 16
                     conduitGet2 get
 
-type BatchSize = 100
+type BatchSize = 10
 type MNIST = Network (ZZ ::. BatchSize ::. 1 ::. 28 ::. 28)
                      '[ Convolution 5 1 13 13 16 16
                       , Pool
                       , ReLU
                       , Flatten
-                      , FC 320 10
+                      , FC 320 100
+                      , ReLU
+                      , FC 100 10
                       , MultiSoftMax '[10] ]
 
-trainC :: LearningParameters -> Conduit (MX BatchSize, MY BatchSize) (ResourceT IO) MNIST
-trainC params = go (randomNetwork 9 :: MNIST)
-  where
-    go net = do Just (MX x, MY y) <- await
-                (net', (pct, dtl)) <- trainOnce net params x y
-                liftIO.Prelude.putStrLn$ show pct ++ "%\t" ++ show dtl
-                yield net'
-                go net'
-
-netSource :: KnownNat n => Source (ResourceT IO) (MX n, MY n)
-netSource = getZipSource $ (,) <$> ZipSource imageSource <*> ZipSource labelSource
-
-main = do net <- runConduitRes$ forever netSource
-                             .| trainC (LearningParameters 1e-2 0.9 1e-3)
-                             .| takeC 500
-                             .| lastC
+main = do Just (net :: MNIST) <-
+            runConduitRes $ combineXY imageSource labelSource
+                         .| mapC (\ (MX x, MY y) -> (x, y))
+                         .| trainC (LearningParameters 1e-2 0.4 1e-3)
+                         .| takeC 500
+                         .| lastC
           undefined
 
