@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -56,15 +57,14 @@ type MNIST = Network (ZZ ::. BatchSize ::. 1 ::. 28 ::. 28)
                       , Flatten
                       , FC 320 10
                       , MultiSoftMax '[10] ]
-                     (ZZ ::. BatchSize ::. 10)
 
-trainC :: LearningParameters -> Conduit (MX BatchSize, MY BatchSize) (ResourceT IO) Double
+trainC :: LearningParameters -> Conduit (MX BatchSize, MY BatchSize) (ResourceT IO) MNIST
 trainC params = go (randomNetwork 9 :: MNIST)
   where
     go net = do Just (MX x, MY y) <- await
-                y' <- forward net x
                 (net', (pct, dtl)) <- trainOnce net params x y
                 liftIO.Prelude.putStrLn$ show pct ++ "%\t" ++ show dtl
+                yield net'
                 go net'
 
 netSource :: KnownNat n => Source (ResourceT IO) (MX n, MY n)
